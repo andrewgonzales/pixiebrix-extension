@@ -38,8 +38,11 @@ export function setCurrentValue(newValue: number): void {
   }
 }
 
-export async function subscribe(listener: () => void) {
+export function subscribe(listener: () => void): () => void {
   listeners.add(listener);
+  return async () => {
+    await unsubscribe(listener);
+  };
 }
 
 export async function unsubscribe(listener: () => void) {

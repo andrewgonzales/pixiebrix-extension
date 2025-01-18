@@ -16,53 +16,40 @@
  */
 
 import React from "react";
-import useAsyncState from "@/hooks/useAsyncState";
 import { render, screen, waitFor } from "@testing-library/react";
-import { Provider, useSelector } from "react-redux";
-import { configureStore, createSlice } from "@reduxjs/toolkit";
+import { Provider } from "react-redux";
+import { configureStore } from "@reduxjs/toolkit";
+import useAsyncState2 from "./asyncStateSlice";
+import { getCurrentValue, subscribe } from "./asyncValue";
+import { asyncStateReducer } from "./asyncStateSlice";
 
-type TestRootState = {
-  dummySlice: {
-    greeting: string;
+jest.mock("./asyncValue", () => {
+  return {
+    ...jest.requireActual("./asyncValue"),
+    getCurrentValue: jest.fn(),
   };
-};
+});
 
-const asyncMock = jest.fn().mockResolvedValue(42);
+const asyncMock = getCurrentValue as jest.Mock;
+asyncMock.mockResolvedValue(42);
 
 const ValueComponent: React.FunctionComponent = () => {
-  // Using our useAsyncState hook
-  const { data } = useAsyncState(asyncMock, []);
-  // Example of using react-redux's useSelector to get data from the Redux store
-  const greeting = useSelector(
-    (state: TestRootState) => state.dummySlice.greeting,
-  );
+  const { data } = useAsyncState2("value1", asyncMock, subscribe);
 
   return (
     <div>
-      <div data-testid="greeting">{greeting}</div>
       <div data-testid="data">{data}</div>
     </div>
   );
 };
 
 /**
- * A dummy slice because configureStore requires at least one reducer.
- */
-const dummySlice = createSlice({
-  name: "dummySlice",
-  initialState: { greeting: "Hello!" } satisfies TestRootState["dummySlice"],
-  reducers: {},
-});
-
-/**
  * Create a Redux store for use in the tests.
  */
 function createTestStore() {
-  // Add your reducer(s) and/or middleware here.
-  // We've included a dummy slice in the skeleton because Redux throws exception if no reducer is provided
   return configureStore({
     reducer: {
-      dummySlice: dummySlice.reducer,
+      async: asyncStateReducer,
     },
   });
 }
@@ -85,7 +72,6 @@ describe("asyncStateSlice", () => {
     });
 
     expect(screen.getByTestId("data")).toHaveTextContent("42");
-    expect(screen.getByTestId("greeting")).toHaveTextContent("Hello");
   });
 
   it("computes only once", async () => {
@@ -96,7 +82,6 @@ describe("asyncStateSlice", () => {
       </Provider>,
     );
 
-    // FIXME: called 2 times because it's called once per component
     await waitFor(() => {
       expect(asyncMock).toHaveBeenCalledOnce();
     });
