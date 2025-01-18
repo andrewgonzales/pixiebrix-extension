@@ -33,12 +33,27 @@ jest.mock("./asyncValue", () => {
 const asyncMock = getCurrentValue as jest.Mock;
 asyncMock.mockResolvedValue(42);
 
-const ValueComponent: React.FunctionComponent = () => {
-  const { data } = useAsyncState2("value1", asyncMock, subscribe);
+type ValueComponentProps = {
+  id?: number;
+};
+
+const ValueComponent: React.FunctionComponent<ValueComponentProps> = ({
+  id = 1,
+}) => {
+  const { data, error, isError } = useAsyncState2(
+    "value1",
+    asyncMock,
+    subscribe,
+  );
 
   return (
     <div>
-      <div data-testid="data">{data}</div>
+      <div data-testid={`data-${id}`}>{data}</div>
+      {isError && (
+        <div data-testid="error">
+          {error instanceof Error ? error.message : "Unknown error"}
+        </div>
+      )}
     </div>
   );
 };
@@ -71,13 +86,30 @@ describe("asyncStateSlice", () => {
       expect(asyncMock).toHaveBeenCalledOnce();
     });
 
-    expect(screen.getByTestId("data")).toHaveTextContent("42");
+    expect(screen.getByTestId("data-1")).toHaveTextContent("42");
   });
 
   it("computes only once", async () => {
     render(
       <Provider store={createTestStore()}>
-        <ValueComponent />
+        <ValueComponent id={1} />
+        <ValueComponent id={2} />
+      </Provider>,
+    );
+
+    await waitFor(() => {
+      expect(asyncMock).toHaveBeenCalledOnce();
+    });
+
+    expect(screen.getByTestId("data-1")).toHaveTextContent("42");
+    expect(screen.getByTestId("data-2")).toHaveTextContent("42");
+  });
+
+  it("returns errors", async () => {
+    asyncMock.mockRejectedValueOnce(new Error("Test error"));
+
+    render(
+      <Provider store={createTestStore()}>
         <ValueComponent />
       </Provider>,
     );
@@ -85,5 +117,8 @@ describe("asyncStateSlice", () => {
     await waitFor(() => {
       expect(asyncMock).toHaveBeenCalledOnce();
     });
+
+    expect(screen.getByTestId("data-1")).toHaveTextContent("");
+    expect(screen.getByTestId("error")).toHaveTextContent("Test error");
   });
 });
