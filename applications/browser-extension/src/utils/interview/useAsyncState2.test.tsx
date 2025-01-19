@@ -19,7 +19,8 @@ import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
-import useAsyncState2, { asyncStateReducer } from "./asyncStateSlice";
+
+import useAsyncState2, { asyncStateReducer } from "./useAsyncState2";
 import { getCurrentValue, setCurrentValue, subscribe } from "./asyncValue";
 
 jest.mock("./asyncValue", () => {
@@ -96,7 +97,7 @@ function createTestStore() {
   });
 }
 
-describe("asyncStateSlice", () => {
+describe("useAsyncState2", () => {
   beforeEach(() => {
     // Reset the mock call history before each test
     jest.clearAllMocks();
