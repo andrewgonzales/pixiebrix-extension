@@ -20,11 +20,13 @@
  * number that you can subscribe to.
  */
 
+import { sleep } from "@/utils/timeUtils";
+
 let value = 42;
 const listeners = new Set<() => void>();
 
 export async function getCurrentValue(): Promise<{ value: number }> {
-  // See our sleep utility method in timeUtils.ts
+  await sleep(50);
   return {
     value,
   };
@@ -40,11 +42,11 @@ export function setCurrentValue(newValue: number): void {
 
 export function subscribe(listener: () => void): () => void {
   listeners.add(listener);
-  return async () => {
-    await unsubscribe(listener);
+  return () => {
+    unsubscribe(listener);
   };
 }
 
-export async function unsubscribe(listener: () => void) {
+export function unsubscribe(listener: () => void) {
   listeners.delete(listener);
 }

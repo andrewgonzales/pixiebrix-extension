@@ -9,10 +9,13 @@ import {
   loadingAsyncStateFactory,
   valueToAsyncState,
 } from "@/utils/asyncStateUtils";
+import pureBind from "./pureBind";
 
 type AsyncStateMap = Record<string, AsyncState<any>>;
 
 const initialState: AsyncStateMap = {};
+
+const dummySubscribe: Subscribe = () => () => {};
 
 const asyncStateSlice2 = createSlice({
   name: "async",
@@ -30,27 +33,37 @@ const asyncStateSlice2 = createSlice({
 export const { setAsyncState } = asyncStateSlice2.actions;
 export const { reducer: asyncStateReducer } = asyncStateSlice2;
 
-const fetchInProgress = new Map<string, boolean>();
+type AsyncFunction<T> = (...args: any[]) => Promise<T>;
 
-// Unlike useAsyncState, this hook should only await one async call, regardless of instance count
+const fetchInProgress = new WeakMap<Function, boolean>();
+
+// Unlike useAsyncState, this hook shares some state such that it should only await one async call for a given function/argument set, regardless of the number of hook instances.
 const useAsyncState2 = <T>(
+  // subscribe is the first parameter to match the usage of useAsyncExternalStore, but there may not be a Subscribe, so a no-op is provided as a default
+  subscribe: Subscribe = dummySubscribe,
   storeKey: string,
-  asyncFunction: () => Promise<T>,
-  subscribe: Subscribe,
+  asyncFunction: AsyncFunction<T>,
+  ...asyncFunctionArgs: any[]
 ): FetchableAsyncState<T> => {
   const dispatch = useDispatch();
   const asyncState = useSelector(
-    (state: RootState) => state.async?.[storeKey] as AsyncState<T>,
+    (state: RootState) => state.async[storeKey] as AsyncState<T>,
   );
+
+  const boundAsyncFunction =
+    // pureBind binds asyncFunction with its supplied args while allowing strict equality check on WeakMap keys
+    asyncFunctionArgs.length > 0
+      ? pureBind(asyncFunction, ...asyncFunctionArgs)
+      : asyncFunction;
 
   const fetchData = useCallback(async () => {
     // Don't duplicate fetch in progress
-    if (fetchInProgress.get(storeKey)) {
+    if (fetchInProgress.get(boundAsyncFunction)) {
       return;
     }
 
     // Set key to true while fetch is in progress
-    fetchInProgress.set(storeKey, true);
+    fetchInProgress.set(boundAsyncFunction, true);
 
     dispatch(
       setAsyncState({
@@ -60,7 +73,7 @@ const useAsyncState2 = <T>(
     );
 
     try {
-      const data = await asyncFunction();
+      const data = await boundAsyncFunction();
       const newState = valueToAsyncState(data);
       dispatch(
         setAsyncState({
@@ -78,18 +91,21 @@ const useAsyncState2 = <T>(
       );
     } finally {
       // remove from fetchInProgress once the promise is settled
-      fetchInProgress.delete(storeKey);
+      fetchInProgress.delete(boundAsyncFunction);
     }
-  }, [dispatch, storeKey, asyncFunction]);
+  }, [dispatch, storeKey, boundAsyncFunction]);
 
   useEffect(() => {
+    // fetch the data on mount
     fetchData();
   }, [fetchData]);
 
   // handle subscriptions
   useEffect(() => {
-    const unsubscribe = subscribe(fetchData);
-    return () => unsubscribe();
+    if (subscribe !== dummySubscribe) {
+      const unsubscribe = subscribe(fetchData);
+      return () => unsubscribe();
+    }
   }, [subscribe, fetchData]);
 
   // allow for refetching
