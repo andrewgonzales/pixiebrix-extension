@@ -28,7 +28,7 @@ import { uuidv4, validateUUID } from "@/types/helpers";
 import deepEquals from "fast-deep-equal";
 import { SimpleEventTarget } from "@/utils/SimpleEventTarget";
 
-type Subscribe = (callback: () => void) => () => void;
+export type Subscribe = (callback: () => void) => () => void;
 
 class StateController<T = unknown> {
   private readonly stateListeners = new SimpleEventTarget();
